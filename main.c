@@ -8,7 +8,7 @@
 #define LINHAS 5
 #define COLUNAS 5
 
-#define MAX_INIMIGOS 10
+#define MAX_INIMIGOS 3
 
 typedef enum {
     ATIRADOR = 1,
@@ -287,10 +287,10 @@ int main() {
         {'R', 0, 3, 4},
         {'X', 0, 4, 5},
         {'T', 1, 4, 6},
-        {'T', 2, 1, 7},
-        {'R', 2, 2, 8},
-        {'X', 2, 3, 9},
-        {'T', 2, 4, 10},
+        {'T', 2, 4, 7},
+        {'X', 2, 3, 8},
+        {'R', 2, 2, 9},
+        {'T', 2, 1, 10},
         {'T', 3, 1, 11},
         {'X', 4, 1, 12},
         {'R', 4, 2, 13},
@@ -300,93 +300,93 @@ int main() {
     // Segunda fase
     Sala fase2_salas[] = {
         {'E', 0, 0, 1},
-        {'X', 0, 3, 2},
-        {'T', 1, 0, 3},
-        {'T', 1, 3, 4},
-        {'R', 1, 4, 5},
-        {'X', 2, 0, 6},
-        {'R', 2, 1, 7},
-        {'X', 2, 4, 8},
-        {'T', 3, 1, 9},
+        {'T', 1, 0, 2},
+        {'X', 2, 0, 3},
+        {'R', 2, 1, 4},
+        {'T', 3, 1, 5},
+        {'T', 4, 1, 6},
+        {'X', 4, 2, 7},
+        {'T', 4, 3, 8},
+        {'R', 4, 4, 9},
         {'T', 3, 4, 10},
-        {'T', 4, 1, 11},
-        {'X', 4, 2, 12},
-        {'T', 4, 3, 13},
-        {'R', 4, 4, -1}
+        {'X', 2, 4, 11},
+        {'R', 1, 4, 12},
+        {'T', 1, 3, 13},
+        {'X', 0, 3, -1},
     };
 
     // Terceira fase
     Sala fase3_salas[] = {
-        {'R', 0, 1, 1},
-        {'X', 0, 2, 2},
-        {'T', 0, 3, 3},
-        {'R', 0, 4, 4},
-        {'X', 1, 0, 5},
-        {'T', 1, 1, 6},
-        {'T', 1, 4, 7},
-        {'X', 2, 4, 8},
-        {'R', 3, 2, 9},
-        {'T', 3, 3, 10},
-        {'T', 3, 4, 11},
-        {'E', 4, 0, 12},
-        {'T', 4, 1, 13},
-        {'X', 4, 2, -1}
+        {'E', 4, 0, 1},
+        {'T', 4, 1, 2},
+        {'X', 4, 2, 3},
+        {'R', 3, 2, 4},
+        {'T', 3, 3, 5},
+        {'T', 3, 4, 6},
+        {'X', 2, 4, 7},
+        {'T', 1, 4, 8},
+        {'R', 0, 4, 9},
+        {'T', 0, 3, 10},
+        {'X', 0, 2, 11},
+        {'R', 0, 1, 12},
+        {'T', 1, 1, 13},
+        {'X', 1, 0, -1},
     };
 
     // Quarta fase
     Sala fase4_salas[] = {
-        {'X', 0, 0, 1},
-        {'T', 0, 1, 2},
-        {'T', 0, 2, 3},
+        {'E', 4, 0, 1},
+        {'T', 3, 0, 2},
+        {'T', 2, 0, 3},
         {'R', 1, 0, 4},
-        {'X', 1, 2, 5},
-        {'X', 1, 4, 6},
-        {'T', 2, 0, 7},
-        {'R', 2, 2, 8},
-        {'R', 2, 4, 9},
-        {'T', 3, 0, 10},
-        {'T', 3, 2, 11},
-        {'T', 3, 3, 12},
-        {'X', 3, 4, 13},
-        {'E', 4, 0, -1}
+        {'X', 0, 0, 5},
+        {'T', 0, 1, 6},
+        {'T', 0, 2, 7},
+        {'X', 1, 2, 8},
+        {'R', 2, 2, 9},
+        {'T', 3, 2, 10},
+        {'T', 3, 3, 11},
+        {'X', 3, 4, 12},
+        {'R', 2, 4, 13},
+        {'X', 1, 4, -1},
     };
 
     // Quinta fase
     Sala fase5_salas[] = {
         {'E', 0, 0, 1},
-        {'R', 0, 2, 2},
-        {'T', 0, 3, 3},
-        {'X', 0, 4, 4},
-        {'T', 1, 0, 5},
-        {'T', 1, 2, 6},
-        {'T', 1, 4, 7},
-        {'T', 2, 0, 8},
+        {'T', 1, 0, 2},
+        {'T', 2, 0, 3},
+        {'X', 3, 0, 4},
+        {'T', 4, 0, 5},
+        {'T', 4, 1, 6},
+        {'R', 4, 2, 7},
+        {'X', 3, 2, 8},
         {'T', 2, 2, 9},
-        {'T', 2, 4, 10},
-        {'X', 3, 0, 11},
-        {'X', 3, 2, 12},
-        {'R', 3, 4, 13},
-        {'T', 4, 0, 14},
-        {'T', 4, 1, 15},
-        {'R', 4, 2, 16},
+        {'T', 1, 2, 10},
+        {'R', 0, 2, 11},
+        {'T', 0, 3, 12},
+        {'X', 0, 4, 13},  
+        {'T', 1, 4, 14},
+        {'T', 2, 4, 15},
+        {'R', 3, 4, 16},
         {'X', 4, 4, -1}
     };
 
     // Criação dos mapas
     Mapa fase1 = construirFase(
-        "Estação da Lua Phobos",
+        "Estacao da Lua Phobos",
         fase1_salas,
         sizeof(fase1_salas) / sizeof(fase1_salas[0])
     );
 
     Mapa fase2 = construirFase(
-        "Estação da Lua Deimos",
+        "Estacao da Lua Deimos",
         fase2_salas,
         sizeof(fase2_salas) / sizeof(fase2_salas[0])
     );
 
     Mapa fase3 = construirFase(
-        "Planeta Anão Ceres",
+        "Planeta Anao Ceres",
         fase3_salas,
         sizeof(fase3_salas) / sizeof(fase3_salas[0])
     );
@@ -398,14 +398,40 @@ int main() {
     );
 
     Mapa fase5 = construirFase(
-        "Lua Ganímedes",
+        "Lua Ganimedes",
         fase5_salas,
         sizeof(fase5_salas) / sizeof(fase5_salas[0])
     );
 
-    construirVisualFase(&fase1);
+    // Inimigos - Fase 1
+    fase1.inimigos[0] = (Inimigo){"Hopper", SAMURAI, 120, 120, 10, 10, 5, 5};
+    fase1.inimigos[1] = (Inimigo){"Blake", ATIRADOR, 80, 80, 5, 5, 10, 10};
+    fase1.inimigos[2] = (Inimigo){"Ralph", CIBORGUE, 150, 150, 5, 15, 0, 5};
+    fase1.boss = (Inimigo){"Asterion", CIBORGUE, 180, 180, 10, 15, 5, 5};
 
-    menuPadrao(&fase1, &personagem);
+    // Inimigos - Fase 2
+    fase2.inimigos[0] = (Inimigo){"Sullivan", SAMURAI, 120, 120, 15, 10, 5, 5};
+    fase2.inimigos[1] = (Inimigo){"Spencer", CIBORGUE, 150, 150, 8, 15, 0, 5};
+    fase2.inimigos[2] = (Inimigo){"Edgar", CIBORGUE, 150, 150, 8, 15, 0, 5};
+    fase2.boss = (Inimigo){"Maia", SAMURAI, 160, 160, 15, 12, 8, 5};
+
+    // Inimigos - Fase 3
+    fase3.inimigos[0] = (Inimigo){"Marshall", ATIRADOR, 90, 90, 8, 5, 12, 10};
+    fase3.inimigos[1] = (Inimigo){"Ron", SAMURAI, 130, 130, 15, 12, 5, 8};
+    fase3.inimigos[2] = (Inimigo){"Luke", CIBORGUE, 160, 160, 8, 15, 2, 8};
+    fase3.boss = (Inimigo){"Plutus", ATIRADOR, 180, 180, 12, 8, 15, 12};
+
+    // Inimigos - Fase 4
+    fase4.inimigos[0] = (Inimigo){"Bond", CIBORGUE, 170, 170, 10, 15, 2, 8};
+    fase4.inimigos[1] = (Inimigo){"Maximus", SAMURAI, 140, 140, 15, 12, 8, 10};
+    fase4.inimigos[2] = (Inimigo){"Gustaf", ATIRADOR, 100, 100, 10, 8, 12, 12};
+    fase4.boss = (Inimigo){"Argos", CIBORGUE, 220, 220, 15, 15, 5, 10};
+
+    // Inimigos - Fase 5
+    fase5.inimigos[0] = (Inimigo){"Bruce", SAMURAI, 150, 150, 15, 15, 10, 10};
+    fase5.inimigos[1] = (Inimigo){"Klaus", ATIRADOR, 120, 120, 12, 8, 15, 15};
+    fase5.inimigos[2] = (Inimigo){"Vivien", CIBORGUE, 200, 200, 12, 15, 5, 10};
+    fase5.boss = (Inimigo){"Urano", CIBORGUE, 250, 250, 15, 15, 10, 15};
 
     return 0;
 }

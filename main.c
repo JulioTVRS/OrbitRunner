@@ -8,6 +8,8 @@
 #define LINHAS 5
 #define COLUNAS 5
 
+#define MAX_INIMIGOS 10
+
 typedef enum {
     ATIRADOR = 1,
     SAMURAI,
@@ -18,7 +20,7 @@ typedef enum {
     CHECARSTATUS = 1,
     CHECAREQUIPAMENTO,
     VERIFICARMAPA,
-    PROXIMAFASE
+    PROXIMASALA
 } OpcaoMenuPadrao;
 
 typedef struct {
@@ -31,15 +33,16 @@ typedef struct {
     int inteligencia;
     char habilidadeEspecial[20];
 } Personagem;
-    
+
 typedef struct {
     char nome[25];
-    int vida;
+    Classe classe;
+    int vida, vidaMax;
     int forca;
     int defesa;
     int agilidade;
     int inteligencia;
-} Equipamento;
+} Inimigo;
 
 typedef struct {
     char tipo;
@@ -51,6 +54,8 @@ typedef struct {
 typedef struct {
     char nome[25];
     Sala salas[MAX_SALAS];
+    Inimigo inimigos[MAX_INIMIGOS];
+    Inimigo boss;
     int totalSalas;
     int jogador;
 } Mapa;
@@ -173,6 +178,11 @@ void avancarSala(Mapa *mapa) {
     mapa->jogador = proxima;
 }
 
+void salaInimigo() {
+    printf(">===========================<\n");
+    printf("Voce encontra um inimigo!    \n");
+}
+
 void construirVisualFase(Mapa *mapa) {
     printf(">=======================<\n");
     printf("       [Fase: %s]\n", mapa->nome);
@@ -217,14 +227,14 @@ void menuPadrao(Mapa *mapa, Personagem *personagem) {
     int escolha;
     
     do {
-        printf(">===========================<\n");
-        printf("    [Qual decisao tomar?]    \n");
-        printf(">===========================<\n");
-        printf("[1] - Checar meus status     \n");
-        printf("[2] - Checar meu equipamento \n");
-        printf("[3] - Verificar o mapa       \n");
-        printf("[4] - Ir para a proxima fase \n");
-        printf("Digite qual a sua acao: ");
+        printf(">===============================<\n");
+        printf("      [Qual decisao tomar?]      \n");
+        printf(">===============================<\n");
+        printf("[1] - Checar meus status         \n");
+        printf("[2] - Checar meu equipamento     \n");
+        printf("[3] - Verificar o mapa           \n");
+        printf("[4] - Ir para o proximo destino  \n");
+        printf("Digite a sua acao: ");
         scanf("%d", &escolha);
 
         switch (escolha)
@@ -238,22 +248,21 @@ void menuPadrao(Mapa *mapa, Personagem *personagem) {
                 limparTela();
                 construirVisualFase(mapa);
                 break;
-            case PROXIMAFASE:
+            case PROXIMASALA:
                 limparTela();
-                avancarSala(mapa); 
+                avancarSala(mapa);
+                construirVisualFase(mapa);
                 break;
             
             default: limparTela(); break;
         }
-    } while(escolha > CHECARSTATUS && escolha < PROXIMAFASE);
+    } while(escolha > CHECARSTATUS && escolha < PROXIMASALA);
     
 }
 
-int GirarDado() {
+int girarDado(int qtdLados) {
     int min = 1;
-    int max = 6;
-
-    return rand() % (max - min + 1) + min;
+    return rand() % (qtdLados - min + 1) + min;
 }
 
 int main() {
@@ -270,19 +279,130 @@ int main() {
     aguardarEnter();
     limparTela();
     
+    // Primeira fase
     Sala fase1_salas[] = {
-        {'R', 0, 0, 1},
-        {'O', 0, 1, 2},
-        {'O', 0, 2, 3},
-        {'X', 0, 3, 4},
-
-        {'O', 1, 3, 5},
-        {'O', 2, 3, 6},
-        {'O', 2, 2, 7},
-        {'O', 3, 2, -1},
+        {'E', 0, 0, 1},
+        {'T', 0, 1, 2},
+        {'T', 0, 2, 3},
+        {'R', 0, 3, 4},
+        {'X', 0, 4, 5},
+        {'T', 1, 4, 6},
+        {'T', 2, 1, 7},
+        {'R', 2, 2, 8},
+        {'X', 2, 3, 9},
+        {'T', 2, 4, 10},
+        {'T', 3, 1, 11},
+        {'X', 4, 1, 12},
+        {'R', 4, 2, 13},
+        {'X', 4, 3, -1}
     };
 
-    Mapa fase1 = construirFase("Fase1", fase1_salas, 8);
+    // Segunda fase
+    Sala fase2_salas[] = {
+        {'E', 0, 0, 1},
+        {'X', 0, 3, 2},
+        {'T', 1, 0, 3},
+        {'T', 1, 3, 4},
+        {'R', 1, 4, 5},
+        {'X', 2, 0, 6},
+        {'R', 2, 1, 7},
+        {'X', 2, 4, 8},
+        {'T', 3, 1, 9},
+        {'T', 3, 4, 10},
+        {'T', 4, 1, 11},
+        {'X', 4, 2, 12},
+        {'T', 4, 3, 13},
+        {'R', 4, 4, -1}
+    };
+
+    // Terceira fase
+    Sala fase3_salas[] = {
+        {'R', 0, 1, 1},
+        {'X', 0, 2, 2},
+        {'T', 0, 3, 3},
+        {'R', 0, 4, 4},
+        {'X', 1, 0, 5},
+        {'T', 1, 1, 6},
+        {'T', 1, 4, 7},
+        {'X', 2, 4, 8},
+        {'R', 3, 2, 9},
+        {'T', 3, 3, 10},
+        {'T', 3, 4, 11},
+        {'E', 4, 0, 12},
+        {'T', 4, 1, 13},
+        {'X', 4, 2, -1}
+    };
+
+    // Quarta fase
+    Sala fase4_salas[] = {
+        {'X', 0, 0, 1},
+        {'T', 0, 1, 2},
+        {'T', 0, 2, 3},
+        {'R', 1, 0, 4},
+        {'X', 1, 2, 5},
+        {'X', 1, 4, 6},
+        {'T', 2, 0, 7},
+        {'R', 2, 2, 8},
+        {'R', 2, 4, 9},
+        {'T', 3, 0, 10},
+        {'T', 3, 2, 11},
+        {'T', 3, 3, 12},
+        {'X', 3, 4, 13},
+        {'E', 4, 0, -1}
+    };
+
+    // Quinta fase
+    Sala fase5_salas[] = {
+        {'E', 0, 0, 1},
+        {'R', 0, 2, 2},
+        {'T', 0, 3, 3},
+        {'X', 0, 4, 4},
+        {'T', 1, 0, 5},
+        {'T', 1, 2, 6},
+        {'T', 1, 4, 7},
+        {'T', 2, 0, 8},
+        {'T', 2, 2, 9},
+        {'T', 2, 4, 10},
+        {'X', 3, 0, 11},
+        {'X', 3, 2, 12},
+        {'R', 3, 4, 13},
+        {'T', 4, 0, 14},
+        {'T', 4, 1, 15},
+        {'R', 4, 2, 16},
+        {'X', 4, 4, -1}
+    };
+
+    // Criação dos mapas
+    Mapa fase1 = construirFase(
+        "Estação da Lua Phobos",
+        fase1_salas,
+        sizeof(fase1_salas) / sizeof(fase1_salas[0])
+    );
+
+    Mapa fase2 = construirFase(
+        "Estação da Lua Deimos",
+        fase2_salas,
+        sizeof(fase2_salas) / sizeof(fase2_salas[0])
+    );
+
+    Mapa fase3 = construirFase(
+        "Planeta Anão Ceres",
+        fase3_salas,
+        sizeof(fase3_salas) / sizeof(fase3_salas[0])
+    );
+
+    Mapa fase4 = construirFase(
+        "Cidade do Asteroide Vesta",
+        fase4_salas,
+        sizeof(fase4_salas) / sizeof(fase4_salas[0])
+    );
+
+    Mapa fase5 = construirFase(
+        "Lua Ganímedes",
+        fase5_salas,
+        sizeof(fase5_salas) / sizeof(fase5_salas[0])
+    );
+
     construirVisualFase(&fase1);
 
     menuPadrao(&fase1, &personagem);

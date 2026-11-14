@@ -1,0 +1,28 @@
+# Arquivos objeto e bibliotecas compiladas
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+
+# Arquivos de depuração (Debug)
+*.dSYM/
+*.pdb
+*.ilk
+*.suo
+*.idb
+
+# Pastas de build comuns
+build/
+bin/
+obj/
+out/
+
+# Arquivos temporários e de editores/IDEs (VS Code, Vim, etc.)
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store

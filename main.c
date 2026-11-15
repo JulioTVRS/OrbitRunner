@@ -4,11 +4,18 @@
 #include <math.h>
 #include <time.h>
 
-#define MAX_SALAS 15
+#define MAX_SALAS 20
 #define LINHAS 5
 #define COLUNAS 5
 
 #define MAX_INIMIGOS 3
+
+// Balanceamento do combate
+#define MULT_NORMAL          3   // dano normal  = atributo * 3 + d6 - defesa_alvo/2
+#define MULT_ESPECIAL        4   // dano especial = (atr1 + atr2) * 4 + d6 - defesa_alvo/2
+#define RECARGA_ESPECIAL     3   // habilidade especial a cada 3 rounds
+#define CHANCE_DEFESA_INIMIGO 25 // % de chance do inimigo escolher defender
+#define ESQUIVA_POR_AGI      2   // % de esquiva por ponto de agilidade
 
 typedef enum {
     ATIRADOR = 1,
@@ -22,6 +29,25 @@ typedef enum {
     VERIFICARMAPA,
     PROXIMASALA
 } OpcaoMenuPadrao;
+
+typedef enum {
+    ACAO_ATACAR = 1,
+    ACAO_DEFENDER,
+    ACAO_ESPECIAL
+} AcaoCombate;
+
+typedef enum {
+    CONTINUA = 0,
+    FASE_CONCLUIDA,
+    JOGADOR_MORREU
+} ResultadoSala;
+
+typedef enum {
+    SALA_ENTRADA = 'E',
+    SALA_TESOURO = 'T',
+    SALA_REABASTECIMENTO = 'R',
+    SALA_INIMIGO = 'X'
+} TipoSala;
 
 typedef struct {
     char nome[25];
@@ -45,7 +71,7 @@ typedef struct {
 } Inimigo;
 
 typedef struct {
-    char tipo;
+    TipoSala tipo;
     int linha;
     int coluna;
     int proxima;
@@ -60,8 +86,37 @@ typedef struct {
     int jogador;
 } Mapa;
 
+typedef struct {
+    const char *nome;
+    Classe classe;
+    int *vida;
+    int forca, defesa, agilidade, inteligencia;
+    int defendendo;
+    int recarga;
+} Lutador;
+
 void limparTela() {
     printf("\033[2J\033[H");
+}
+
+int lerInteiro() {
+    char buffer[32];
+    char *fim;
+
+    if (fgets(buffer, sizeof(buffer), stdin) == NULL) {
+        exit(0);
+    }
+
+    long valor = strtol(buffer, &fim, 10);
+    if (fim == buffer) {
+        return -1;
+    }
+    return (int)valor;
+}
+
+int girarDado(int qtdLados) {
+    int min = 1;
+    return rand() % (qtdLados - min + 1) + min;
 }
 
 char* obterNomeClasse(Classe classe) {
@@ -70,6 +125,16 @@ char* obterNomeClasse(Classe classe) {
         case ATIRADOR: return "Atirador";
         case SAMURAI: return "Samurai";
         case CIBORGUE: return "Ciborgue";
+        default: return "Inexistente";
+    }
+}
+
+char* obterNomeHabilidade(Classe classe) {
+    switch (classe)
+    {
+        case ATIRADOR: return "Rajada de tiros";
+        case SAMURAI: return "Golpe em espiral";
+        case CIBORGUE: return "Canhao de plasma";
         default: return "Inexistente";
     }
 }
@@ -103,9 +168,8 @@ void apresentarHistoria() {
     printf("\n");
     printf("Voce (o piloto), em uma de suas missoes, acaba deixando escapar no vazio do espaco um nucleo energetico\n");
     printf("(objeto capaz de gerar energia para grandes polos por centenas de anos) que estava transportando para Marte\n");
-    printf("e acaba caindo em um grande prejuizo financeiro, mas recebe uma proposta de quitacao da divida: o proprio\n");
-    printf("rei de Marte o propoe de acabar com todos os mercenarios espaciais da gangue Space Hounds para perdoar\n");
-    printf("o que voce devia.\n");
+    printf("e cai em um grande prejuizo financeiro, mas recebe uma proposta de quitacao da divida: o proprio rei de Marte\n");
+    printf("o propoe de acabar com todos os mercenarios espaciais da gangue Space Hounds para perdoar o que voce devia.\n");
 }
 
 void aguardarEnter() {
@@ -137,15 +201,13 @@ void criarJogador(Personagem *personagem) {
     printf("[2] - Samurai\n");
     printf("[3] - Ciborgue\n");
     printf("Digite o numero da sua classe: ");
-    scanf("%d", &escolha_classe);
-    getchar();
+    escolha_classe = lerInteiro();
 
     while (escolha_classe > 3 || escolha_classe < 1) {
         printf(">===============<\n");
         printf("Classe inexistente, Tente novamente!\n");
         printf("Digite o numero da sua classe: ");
-        scanf("%d", &escolha_classe);
-        getchar();
+        escolha_classe = lerInteiro();
     }
 
     *personagem = classes[escolha_classe - 1];
@@ -169,24 +231,210 @@ Mapa construirFase(char *nome, Sala salas[], int totalSalas) {
     return mapa;
 }
 
-void avancarSala(Mapa *mapa) {
-    int proxima = mapa->salas[mapa->jogador].proxima;
-
-    printf(">==================================<\n");
-    printf("Voce avanca para o proximo destino\n");
-
-    mapa->jogador = proxima;
+// Parte do combate
+// Dano = atributo base + d6 - metade da defesa do alvo (minimo 1)
+int calcularDano(int base, int defesaAlvo) {
+    int dano = base + girarDado(6) - defesaAlvo / 2;
+    return dano < 1 ? 1 : dano;
 }
 
-void salaInimigo() {
+// Ataque normal: atirador usa inteligencia, samurai e ciborgue usam forca
+int danoNormal(Lutador *atacante, Lutador *alvo) {
+    int atributo = (atacante->classe == ATIRADOR) ? atacante->inteligencia : atacante->forca;
+    return calcularDano(atributo * MULT_NORMAL, alvo->defesa);
+}
+
+// Habilidade especial: atirador int+agi, samurai forca+agi, ciborgue defesa+int
+int danoEspecial(Lutador *atacante, Lutador *alvo) {
+    int soma;
+    switch (atacante->classe)
+    {
+        case ATIRADOR: soma = atacante->inteligencia + atacante->agilidade; break;
+        case SAMURAI:  soma = atacante->forca + atacante->agilidade; break;
+        default:       soma = atacante->defesa + atacante->inteligencia; break;
+    }
+    return calcularDano(soma * MULT_ESPECIAL, alvo->defesa);
+}
+
+void executarAcao(Lutador *atacante, Lutador *alvo, int acao) {
+    int dano;
+
+    if (acao == ACAO_DEFENDER) {
+        return; // a defesa ja foi aplicada na escolha das acoes
+    }
+
+    if (acao == ACAO_ESPECIAL) {
+        printf("%s usa %s!\n", atacante->nome, obterNomeHabilidade(atacante->classe));
+        dano = danoEspecial(atacante, alvo);
+        atacante->recarga = RECARGA_ESPECIAL;
+    }
+    else {
+        printf("%s ataca %s!\n", atacante->nome, alvo->nome);
+        if (girarDado(100) <= alvo->agilidade * ESQUIVA_POR_AGI) {
+            printf("%s esquivou do ataque!\n", alvo->nome);
+            return;
+        }
+        dano = danoNormal(atacante, alvo);
+    }
+
+    if (alvo->defendendo) {
+        dano /= 2;
+        if (dano < 1) dano = 1;
+        printf("%s se defendeu e reduziu o dano pela metade!\n", alvo->nome);
+    }
+
+    *alvo->vida -= dano;
+    if (*alvo->vida < 0) *alvo->vida = 0;
+    printf("%s sofreu %d de dano.\n", alvo->nome, dano);
+}
+
+int escolherAcaoJogador(Lutador *jogador) {
+    int acao;
+
+    do {
+        printf("Digite a sua acao: ");
+        acao = lerInteiro();
+
+        if (acao == ACAO_ESPECIAL && jogador->recarga > 0) {
+            printf("Habilidade especial em recarga (%d round(s))!\n", jogador->recarga);
+            acao = 0;
+        }
+    } while (acao < ACAO_ATACAR || acao > ACAO_ESPECIAL);
+
+    return acao;
+}
+
+int escolherAcaoInimigo(Lutador *inimigo, int Boss) {
+    if (Boss && inimigo->recarga == 0) {
+        return ACAO_ESPECIAL;
+    }
+    if (girarDado(100) <= CHANCE_DEFESA_INIMIGO) {
+        return ACAO_DEFENDER;
+    }
+    return ACAO_ATACAR;
+}
+
+// Retorna 1 se o jogador venceu, 0 se foi derrotado
+int combate(Personagem *personagem, Inimigo *inimigo, int ehBoss) {
+    Lutador jogador = {
+        personagem->nome, personagem->classe, &personagem->vida,
+        personagem->forca, personagem->defesa, personagem->agilidade, personagem->inteligencia,
+        0, RECARGA_ESPECIAL - 1
+    };
+    Lutador oponente = {
+        inimigo->nome, inimigo->classe, &inimigo->vida,
+        inimigo->forca, inimigo->defesa, inimigo->agilidade, inimigo->inteligencia,
+        0, RECARGA_ESPECIAL - 1
+    };
+
+    int rodada = 1;
+    int jogadorPrimeiro = personagem->agilidade >= inimigo->agilidade;
+
+    while (personagem->vida > 0 && inimigo->vida > 0) {
+        printf("\n>===========================<\n");
+        printf("         [Round %d]          \n", rodada);
+        printf(">===========================<\n");
+        printf("Sua vida: %d / %d\n", personagem->vida, personagem->vidaMax);
+        printf("Vida do %s: %d / %d\n", inimigo->nome, inimigo->vida, inimigo->vidaMax);
+        printf("\n");
+        printf("[1] - Atacar\n");
+        printf("[2] - Defender\n");
+        if (jogador.recarga == 0) {
+            printf("[3] - Hab. Especial (%s)\n", obterNomeHabilidade(jogador.classe));
+        }
+        else {
+            printf("[3] - Hab. Especial (em recarga: %d round(s))\n", jogador.recarga);
+        }
+
+        int acaoJogador = escolherAcaoJogador(&jogador);
+        int acaoInimigo = escolherAcaoInimigo(&oponente, ehBoss);
+
+        // Defesas valem para o round inteiro, independente de quem age primeiro
+        jogador.defendendo = (acaoJogador == ACAO_DEFENDER);
+        oponente.defendendo = (acaoInimigo == ACAO_DEFENDER);
+
+        printf("\n");
+        if (jogador.defendendo) printf("%s assume postura defensiva.\n", jogador.nome);
+        if (oponente.defendendo) printf("%s assume postura defensiva.\n", oponente.nome);
+
+        // Quem tem mais agilidade age primeiro
+        if (jogadorPrimeiro) {
+            executarAcao(&jogador, &oponente, acaoJogador);
+            if (inimigo->vida > 0) {
+                executarAcao(&oponente, &jogador, acaoInimigo);
+            }
+        }
+        else {
+            executarAcao(&oponente, &jogador, acaoInimigo);
+            if (personagem->vida > 0) {
+                executarAcao(&jogador, &oponente, acaoJogador);
+            }
+        }
+
+        if (jogador.recarga > 0) jogador.recarga--;
+        if (oponente.recarga > 0) oponente.recarga--;
+        rodada++;
+
+        if (personagem->vida > 0 && inimigo->vida > 0) {
+            aguardarEnter();
+            limparTela();
+        }
+    }
+
+    return personagem->vida > 0;
+}
+
+// Retorna 1 se o jogador venceu a luta, 0 se morreu
+int salaInimigo(Mapa *mapa, int *inimigosEncontrados, Personagem *personagem) {
+    int Boss = (mapa->salas[mapa->jogador].proxima == -1);
+    Inimigo *inimigo;
+
+    if (Boss) {
+        inimigo = &mapa->boss;
+    }
+    else {
+        inimigo = &mapa->inimigos[*inimigosEncontrados];
+        (*inimigosEncontrados)++;
+    }
+
     printf(">===========================<\n");
-    printf("Voce encontra um inimigo!    \n");
+    if (Boss) {
+        printf("Voce encontra o CHEFE da fase!\n");
+        printf("[Lynx]: Cuidado! Esse eh o %s, um %s e o lider dessa base dos Space Hounds.\n",
+               inimigo->nome, obterNomeClasse(inimigo->classe));
+    }
+    else {
+        printf("Voce encontra um inimigo!\n");
+        printf("[Lynx]: Esse eh o %s, um %s da gangue dos Space Hounds.\n",
+               inimigo->nome, obterNomeClasse(inimigo->classe));
+    }
+    printf("Voce entra em combate.\n");
+    aguardarEnter();
+    limparTela();
+
+    int venceu = combate(personagem, inimigo, Boss);
+
+    printf("\n>===========================<\n");
+    if (venceu) {
+        if (Boss) {
+            printf("Voce derrotou o chefe %s!\n", inimigo->nome);
+        }
+        else {
+            printf("Voce derrotou %s!\n", inimigo->nome);
+        }
+    }
+    else {
+        printf("%s derrotou voce...\n", inimigo->nome);
+    }
+
+    return venceu;
 }
 
+// Construção visual do mapa
 void construirVisualFase(Mapa *mapa) {
-    printf(">=======================<\n");
-    printf("       [Fase: %s]\n", mapa->nome);
-    printf(">=======================<\n");
+    printf(">=============================<\n");
+    printf("[Fase: %s]\n", mapa->nome);
+    printf(">=============================<\n");
     printf("\n");
 
     char gradeMapa[LINHAS][COLUNAS];
@@ -199,7 +447,7 @@ void construirVisualFase(Mapa *mapa) {
     for (int i = 0; i < mapa->totalSalas; i++) {
         int linha = mapa->salas[i].linha;
         int coluna = mapa->salas[i].coluna;
-        gradeMapa[linha][coluna] = mapa->salas[i].tipo;
+        gradeMapa[linha][coluna] = (char)mapa->salas[i].tipo;
     }
 
     int jogadorLinha = mapa->salas[mapa->jogador].linha;
@@ -213,7 +461,7 @@ void construirVisualFase(Mapa *mapa) {
                 }
                 else {
                     printf("[%c]", gradeMapa[i][j]);
-                }   
+                }
             }
             else {
                 printf("   ");
@@ -223,10 +471,53 @@ void construirVisualFase(Mapa *mapa) {
     }
 }
 
-void menuPadrao(Mapa *mapa, Personagem *personagem) {
+ResultadoSala avancarSala(Mapa *mapa, int *inimigosEncontrados, Personagem *personagem) {
+    int proxima = mapa->salas[mapa->jogador].proxima;
+
+    printf(">==================================<\n");
+    printf("Voce avanca para o proximo destino\n");
+
+    mapa->jogador = proxima;
+
+    switch (mapa->salas[mapa->jogador].tipo)
+    {
+        case SALA_INIMIGO: {
+            int venceu = salaInimigo(mapa, inimigosEncontrados, personagem);
+            if (!venceu) {
+                return JOGADOR_MORREU;
+            }
+            aguardarEnter();
+            limparTela();
+            if (mapa->salas[mapa->jogador].proxima == -1) {
+                return FASE_CONCLUIDA;
+            }
+            break;
+        }
+        case SALA_REABASTECIMENTO:
+            personagem->vida = personagem->vidaMax;
+            printf("Voce chegou a um posto de reabastecimento e recuperou toda a sua vida!\n");
+            break;
+        case SALA_TESOURO:
+            printf("Voce encontrou um local com tesouros.\n");
+            break;
+        case SALA_ENTRADA:
+        default:
+            break;
+    }
+
+    return CONTINUA;
+}
+
+// Roda uma fase inteira. Retorna FASE_CONCLUIDA ou JOGADOR_MORREU
+ResultadoSala executarFase(Mapa *mapa, Personagem *personagem) {
+    int inimigosEncontrados = 0;
     int escolha;
-    
-    do {
+
+    mapa->jogador = 0;
+    limparTela();
+    construirVisualFase(mapa);
+
+    while (1) {
         printf(">===============================<\n");
         printf("      [Qual decisao tomar?]      \n");
         printf(">===============================<\n");
@@ -235,7 +526,7 @@ void menuPadrao(Mapa *mapa, Personagem *personagem) {
         printf("[3] - Verificar o mapa           \n");
         printf("[4] - Ir para o proximo destino  \n");
         printf("Digite a sua acao: ");
-        scanf("%d", &escolha);
+        escolha = lerInteiro();
 
         switch (escolha)
         {
@@ -243,26 +534,28 @@ void menuPadrao(Mapa *mapa, Personagem *personagem) {
                 limparTela();
                 mostrarStatus(personagem);
                 break;
-            case CHECAREQUIPAMENTO: break;
+            case CHECAREQUIPAMENTO:
+                limparTela();
+                printf("Sistema de equipamentos ainda nao disponivel.\n");
+                break;
             case VERIFICARMAPA:
                 limparTela();
                 construirVisualFase(mapa);
                 break;
-            case PROXIMASALA:
+            case PROXIMASALA: {
                 limparTela();
-                avancarSala(mapa);
+                ResultadoSala resultado = avancarSala(mapa, &inimigosEncontrados, personagem);
+                if (resultado != CONTINUA) {
+                    return resultado;
+                }
                 construirVisualFase(mapa);
                 break;
-            
-            default: limparTela(); break;
+            }
+            default:
+                limparTela();
+                break;
         }
-    } while(escolha > CHECARSTATUS && escolha < PROXIMASALA);
-    
-}
-
-int girarDado(int qtdLados) {
-    int min = 1;
-    return rand() % (qtdLados - min + 1) + min;
+    }
 }
 
 int main() {
@@ -270,7 +563,7 @@ int main() {
     limparTela();
 
     Personagem personagem;
-    
+
     criarJogador(&personagem);
     aguardarEnter();
     limparTela();
@@ -278,98 +571,98 @@ int main() {
     apresentarHistoria();
     aguardarEnter();
     limparTela();
-    
+
     // Primeira fase
     Sala fase1_salas[] = {
-        {'E', 0, 0, 1},
-        {'T', 0, 1, 2},
-        {'T', 0, 2, 3},
-        {'R', 0, 3, 4},
-        {'X', 0, 4, 5},
-        {'T', 1, 4, 6},
-        {'T', 2, 4, 7},
-        {'X', 2, 3, 8},
-        {'R', 2, 2, 9},
-        {'T', 2, 1, 10},
-        {'T', 3, 1, 11},
-        {'X', 4, 1, 12},
-        {'R', 4, 2, 13},
-        {'X', 4, 3, -1}
+        {SALA_ENTRADA, 0, 0, 1},
+        {SALA_TESOURO, 0, 1, 2},
+        {SALA_TESOURO, 0, 2, 3},
+        {SALA_INIMIGO, 0, 3, 4},
+        {SALA_REABASTECIMENTO, 0, 4, 5},
+        {SALA_TESOURO, 1, 4, 6},
+        {SALA_TESOURO, 2, 4, 7},
+        {SALA_INIMIGO, 2, 3, 8},
+        {SALA_REABASTECIMENTO, 2, 2, 9},
+        {SALA_TESOURO, 2, 1, 10},
+        {SALA_TESOURO, 3, 1, 11},
+        {SALA_INIMIGO, 4, 1, 12},
+        {SALA_REABASTECIMENTO, 4, 2, 13},
+        {SALA_INIMIGO, 4, 3, -1}
     };
 
     // Segunda fase
     Sala fase2_salas[] = {
-        {'E', 0, 0, 1},
-        {'T', 1, 0, 2},
-        {'X', 2, 0, 3},
-        {'R', 2, 1, 4},
-        {'T', 3, 1, 5},
-        {'T', 4, 1, 6},
-        {'X', 4, 2, 7},
-        {'T', 4, 3, 8},
-        {'R', 4, 4, 9},
-        {'T', 3, 4, 10},
-        {'X', 2, 4, 11},
-        {'R', 1, 4, 12},
-        {'T', 1, 3, 13},
-        {'X', 0, 3, -1},
+        {SALA_ENTRADA, 0, 0, 1},
+        {SALA_TESOURO, 1, 0, 2},
+        {SALA_INIMIGO, 2, 0, 3},
+        {SALA_REABASTECIMENTO, 2, 1, 4},
+        {SALA_TESOURO, 3, 1, 5},
+        {SALA_TESOURO, 4, 1, 6},
+        {SALA_INIMIGO, 4, 2, 7},
+        {SALA_TESOURO, 4, 3, 8},
+        {SALA_REABASTECIMENTO, 4, 4, 9},
+        {SALA_TESOURO, 3, 4, 10},
+        {SALA_INIMIGO, 2, 4, 11},
+        {SALA_REABASTECIMENTO, 1, 4, 12},
+        {SALA_TESOURO, 1, 3, 13},
+        {SALA_INIMIGO, 0, 3, -1},
     };
 
     // Terceira fase
     Sala fase3_salas[] = {
-        {'E', 4, 0, 1},
-        {'T', 4, 1, 2},
-        {'X', 4, 2, 3},
-        {'R', 3, 2, 4},
-        {'T', 3, 3, 5},
-        {'T', 3, 4, 6},
-        {'X', 2, 4, 7},
-        {'T', 1, 4, 8},
-        {'R', 0, 4, 9},
-        {'T', 0, 3, 10},
-        {'X', 0, 2, 11},
-        {'R', 0, 1, 12},
-        {'T', 1, 1, 13},
-        {'X', 1, 0, -1},
+        {SALA_ENTRADA, 4, 0, 1},
+        {SALA_TESOURO, 4, 1, 2},
+        {SALA_INIMIGO, 4, 2, 3},
+        {SALA_REABASTECIMENTO, 3, 2, 4},
+        {SALA_TESOURO, 3, 3, 5},
+        {SALA_TESOURO, 3, 4, 6},
+        {SALA_INIMIGO, 2, 4, 7},
+        {SALA_TESOURO, 1, 4, 8},
+        {SALA_REABASTECIMENTO, 0, 4, 9},
+        {SALA_TESOURO, 0, 3, 10},
+        {SALA_INIMIGO, 0, 2, 11},
+        {SALA_REABASTECIMENTO, 0, 1, 12},
+        {SALA_TESOURO, 1, 1, 13},
+        {SALA_INIMIGO, 1, 0, -1},
     };
 
     // Quarta fase
     Sala fase4_salas[] = {
-        {'E', 4, 0, 1},
-        {'T', 3, 0, 2},
-        {'T', 2, 0, 3},
-        {'R', 1, 0, 4},
-        {'X', 0, 0, 5},
-        {'T', 0, 1, 6},
-        {'T', 0, 2, 7},
-        {'X', 1, 2, 8},
-        {'R', 2, 2, 9},
-        {'T', 3, 2, 10},
-        {'T', 3, 3, 11},
-        {'X', 3, 4, 12},
-        {'R', 2, 4, 13},
-        {'X', 1, 4, -1},
+        {SALA_ENTRADA, 4, 0, 1},
+        {SALA_TESOURO, 3, 0, 2},
+        {SALA_TESOURO, 2, 0, 3},
+        {SALA_REABASTECIMENTO, 1, 0, 4},
+        {SALA_INIMIGO, 0, 0, 5},
+        {SALA_TESOURO, 0, 1, 6},
+        {SALA_TESOURO, 0, 2, 7},
+        {SALA_INIMIGO, 1, 2, 8},
+        {SALA_REABASTECIMENTO, 2, 2, 9},
+        {SALA_TESOURO, 3, 2, 10},
+        {SALA_TESOURO, 3, 3, 11},
+        {SALA_INIMIGO, 3, 4, 12},
+        {SALA_REABASTECIMENTO, 2, 4, 13},
+        {SALA_INIMIGO, 1, 4, -1},
     };
 
     // Quinta fase
     Sala fase5_salas[] = {
-        {'E', 0, 0, 1},
-        {'T', 1, 0, 2},
-        {'T', 2, 0, 3},
-        {'X', 3, 0, 4},
-        {'T', 4, 0, 5},
-        {'T', 4, 1, 6},
-        {'R', 4, 2, 7},
-        {'X', 3, 2, 8},
-        {'T', 2, 2, 9},
-        {'T', 1, 2, 10},
-        {'R', 0, 2, 11},
-        {'T', 0, 3, 12},
-        {'X', 0, 4, 13},  
-        {'T', 1, 4, 14},
-        {'T', 2, 4, 15},
-        {'R', 3, 4, 16},
-        {'X', 4, 4, -1}
+        {SALA_ENTRADA, 0, 0, 1},
+        {SALA_TESOURO, 1, 0, 2},
+        {SALA_TESOURO, 2, 0, 3},
+        {SALA_INIMIGO, 3, 0, 4},
+        {SALA_TESOURO, 4, 0, 5},
+        {SALA_TESOURO, 4, 1, 6},
+        {SALA_REABASTECIMENTO, 4, 2, 7},
+        {SALA_INIMIGO, 3, 2, 8},
+        {SALA_TESOURO, 2, 2, 9},
+        {SALA_TESOURO, 1, 2, 10},
+        {SALA_REABASTECIMENTO, 0, 2, 11},
+        {SALA_TESOURO, 0, 3, 12},
+        {SALA_INIMIGO, 0, 4, 13},
+        {SALA_TESOURO, 1, 4, 14},
+        {SALA_TESOURO, 2, 4, 15},
+        {SALA_REABASTECIMENTO, 3, 4, 16},
+        {SALA_INIMIGO, 4, 4, -1}
     };
 
     // Criação dos mapas
@@ -432,6 +725,34 @@ int main() {
     fase5.inimigos[1] = (Inimigo){"Klaus", ATIRADOR, 120, 120, 12, 8, 15, 15};
     fase5.inimigos[2] = (Inimigo){"Vivien", CIBORGUE, 200, 200, 12, 15, 5, 10};
     fase5.boss = (Inimigo){"Urano", CIBORGUE, 250, 250, 15, 15, 10, 15};
+
+    Mapa *fases[] = {&fase1, &fase2, &fase3, &fase4, &fase5};
+    int totalFases = sizeof(fases) / sizeof(fases[0]);
+
+    for (int i = 0; i < totalFases; i++) {
+        ResultadoSala resultado = executarFase(fases[i], &personagem);
+
+        if (resultado == JOGADOR_MORREU) {
+            aguardarEnter();
+            limparTela();
+            printf(">=============================<\n");
+            printf("          [GAME OVER]          \n");
+            printf(">=============================<\n");
+            printf("Os Space Hounds foram mais fortes dessa vez...\n");
+            return 0;
+        }
+
+        printf(">=============================<\n");
+        printf("Fase \"%s\" concluida!\n", fases[i]->nome);
+        aguardarEnter();
+        limparTela();
+    }
+
+    limparTela();
+    printf(">=============================<\n");
+    printf("          [VITORIA]            \n");
+    printf(">=============================<\n");
+    printf("Voce eliminou a gangue Space Hounds e quitou sua divida com o rei de Marte!\n");
 
     return 0;
 }

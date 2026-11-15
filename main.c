@@ -49,6 +49,14 @@ typedef enum {
     SALA_INIMIGO = 'X'
 } TipoSala;
 
+typedef enum {
+    PHOBOS,
+    DEIMOS,
+    CERES,
+    VESTA,
+    GANIMEDES
+} NOMEFASES;
+
 typedef struct {
     char nome[25];
     Classe classe;
@@ -558,6 +566,74 @@ ResultadoSala executarFase(Mapa *mapa, Personagem *personagem) {
     }
 }
 
+void apresentarTutorial() {
+    printf(">==========================<\n");
+    printf("         [Tutorial]         \n");
+    printf(">==========================<\n");
+    printf("[Lynx]: Oi eu sou o robo-guia da sua nave, lembra de mim?\n");
+    printf("[Lynx]: Enfim, voce ira enfrentar varios mapas com loots, inimigos\n");
+    printf("e locais para se curar ou melhorar seus equipamentos. O mapa apresenta\n");
+    printf("quadrados com letras, que representam cada um desses locais.\n");
+    printf("Sao eles:\n");
+    printf("[E] - Inicio.\n");
+    printf("[T] - Tesouro.\n");
+    printf("[R] - Posto de reabastecimento.\n");
+    printf("[X] - Inimigos e Bosses.\n");
+    printf("[Lynx]: Como o rei disse, se voce derrubar todos os lideres das bases\n");
+    printf("da Space Hounds, voce nao vai ter que pagar pelo estrago que voce fez.\n");
+    printf("[Lynx]: Essa brincadeira vai ser dificil, qualquer coisa estarei por\n");
+    printf("aqui para tirar duvidas.\n");
+}
+
+void dialogoInicioFase(int fase) {
+    printf(">=========================================<\n");
+    switch(fase) {
+        case PHOBOS:
+            printf("[Lynx]: Chegamos no nosso primeiro destino, o rei me entregou o mapa\n"
+                    "das areas dominadas que a gente vai ter que libertar, e vamos comecar\n"
+                    "por aqui.\n"
+                    "[Lynx]: Essa eh Phobos, a maior lua de marte, acho que a gente\n"
+                    "nunca veio aqui antes. Pelos resultados dos rumores da rede, quem\n"
+                    "controla essa area eh o Asterion, um ciborgue meio medonho.\n");
+            break;
+
+        case DEIMOS:
+            printf("[Lynx]: Chegamos em Deimos, parece que as pessoas vivem em uma cidade\n"
+                    "subterranea, melhor tomar cuidado. Na rede nao existe nada sobre\n"
+                    "o lider dessa area, eles provavelmente dominam ela nas sombras, tal\n"
+                    "qual um samurai?\n");
+            break;
+
+        case CERES:
+            printf("[Lynx]: Ja consigo ver Ceres, o planeta anao mais proximo de casa.\n"
+                    "[Lynx]: Eh de se imaginar que eles dominariam essa area, esse lugar onde\n"
+                    "estamos, o cinturao de asteroides, nunca foi muito bem conhecido pela\n"
+                    "sua seguranca.\n"
+                    "[Lynx]: Ah, e o lider daqui eh o Plutus, dizem que ele nunca erra um tiro.\n");
+            break;
+
+        case VESTA:
+            printf("[Lynx]: Estamos na nossa penultima parada, o asteroide Vesta. Pelo que eu sei\n"
+                    "ele eh bem luxuoso. E parece que Argos, o lider daqui, ja era bem rico antes\n"
+                    "de entrar pros Hounds.\n"
+                    "[Lynx]: Mais um casca grossa, parece ele eh um ciborgue que nem o Asterion.\n");
+            break;
+
+        case GANIMEDES:
+            printf("[Lynx]: Aqui eh o fim da linha, chegamos finalmente em Ganimedes, o lar do\n"
+                    "lider supremo da Space Hounds, Urano. Os dados na rede revelam que ele foi\n"
+                    "um samurai muito habilidoso de Marte.\n"
+                    "[Lynx]: Ja eh meio tarde mas eu me pergunto qual motivacao o levou a virar um\n"
+                    "mercenario e vir parar aqui.\n"
+                    "[Lynx]: Mesmo sendo bem otimista, isso aqui ainda vai ser ralado, boa sorte.\n");
+            break;
+
+        default:
+            printf("Local nao implementado.\n");
+            break;
+    }
+}
+
 int main() {
     srand(time(NULL));
     limparTela();
@@ -569,6 +645,10 @@ int main() {
     limparTela();
 
     apresentarHistoria();
+    aguardarEnter();
+    limparTela();
+
+    apresentarTutorial();
     aguardarEnter();
     limparTela();
 
@@ -724,12 +804,17 @@ int main() {
     fase5.inimigos[0] = (Inimigo){"Bruce", SAMURAI, 150, 150, 15, 15, 10, 10};
     fase5.inimigos[1] = (Inimigo){"Klaus", ATIRADOR, 120, 120, 12, 8, 15, 15};
     fase5.inimigos[2] = (Inimigo){"Vivien", CIBORGUE, 200, 200, 12, 15, 5, 10};
-    fase5.boss = (Inimigo){"Urano", CIBORGUE, 250, 250, 15, 15, 10, 15};
+    fase5.boss = (Inimigo){"Urano", SAMURAI, 250, 250, 15, 15, 10, 15};
 
     Mapa *fases[] = {&fase1, &fase2, &fase3, &fase4, &fase5};
     int totalFases = sizeof(fases) / sizeof(fases[0]);
 
     for (int i = 0; i < totalFases; i++) {
+        dialogoInicioFase(i);
+
+        aguardarEnter();
+        limparTela();
+
         ResultadoSala resultado = executarFase(fases[i], &personagem);
 
         if (resultado == JOGADOR_MORREU) {

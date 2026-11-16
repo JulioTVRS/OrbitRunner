@@ -9,6 +9,8 @@
 #define COLUNAS 5
 
 #define MAX_INIMIGOS 3
+#define RECOMPENSA_INIMIGO 30
+#define RECOMPENSA_BOSS 100
 
 // Balanceamento do combate
 #define MULT_NORMAL          3   // dano normal  = atributo * 3 + d6 - defesa_alvo/2
@@ -456,12 +458,18 @@ int salaInimigo(Mapa *mapa, int *inimigosEncontrados, Personagem *personagem) {
 
     printf("\n>===========================<\n");
     if (venceu) {
+        int recompensa = Boss ? RECOMPENSA_BOSS : RECOMPENSA_INIMIGO;
+
         if (Boss) {
             printf("Voce derrotou o chefe %s!\n", inimigo->nome);
         }
         else {
             printf("Voce derrotou %s!\n", inimigo->nome);
         }
+
+        personagem->dinheiro += recompensa;
+
+        printf("Voce recebeu $%d pela vitoria!\n", recompensa);
     }
     else {
         printf("%s derrotou voce...\n", inimigo->nome);

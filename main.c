@@ -13,9 +13,19 @@
 // Balanceamento do combate
 #define MULT_NORMAL          3   // dano normal  = atributo * 3 + d6 - defesa_alvo/2
 #define MULT_ESPECIAL        4   // dano especial = (atr1 + atr2) * 4 + d6 - defesa_alvo/2
+#define MULT_ESPECIAL_BOSS   2 
 #define RECARGA_ESPECIAL     3   // habilidade especial a cada 3 rounds
 #define CHANCE_DEFESA_INIMIGO 25 // % de chance do inimigo escolher defender
 #define ESQUIVA_POR_AGI      2   // % de esquiva por ponto de agilidade
+
+// Balanceamento da economia
+#define TESOURO_DINHEIRO_BASE 20 // tesouro da $20 + (d6 * 5)
+#define TESOURO_SUCATA_MAX    3  // tesouro da de 1 ate 3 sucatas
+#define PRECO_SUCATA         10  // $ recebido por cada sucata vendida
+#define CUSTO_POR_PONTO       3  // custo de melhoria = (atributo + 5) * 6
+#define GANHO_VIDA           15  // cada melhoria de vida da +15 de vida maxima
+#define LIMITE_ATRIBUTO      30  // limite de forca, defesa, agilidade e inteligencia
+#define LIMITE_VIDA         300  // limite de vida maxima
 
 typedef enum {
     ATIRADOR = 1,
@@ -29,6 +39,23 @@ typedef enum {
     VERIFICARMAPA,
     PROXIMASALA
 } OpcaoMenuPadrao;
+
+typedef enum {
+    POSTO_DESCANSAR = 1,
+    POSTO_VENDER,
+    POSTO_MELHORAR,
+    POSTO_MAPA,
+    POSTO_SEGUIR
+} OpcaoMenuPosto;
+
+typedef enum {
+    MELHORIA_VIDA = 1,
+    MELHORIA_FORCA,
+    MELHORIA_DEFESA,
+    MELHORIA_AGILIDADE,
+    MELHORIA_INTELIGENCIA,
+    MELHORIA_VOLTAR
+} OpcaoMelhoria;
 
 typedef enum {
     ACAO_ATACAR = 1,
@@ -66,6 +93,8 @@ typedef struct {
     int agilidade;
     int inteligencia;
     char habilidadeEspecial[20];
+    int dinheiro;
+    int sucata;
 } Personagem;
 
 typedef struct {
@@ -101,6 +130,7 @@ typedef struct {
     int forca, defesa, agilidade, inteligencia;
     int defendendo;
     int recarga;
+    int multEspecial;
 } Lutador;
 
 void limparTela() {
@@ -159,6 +189,8 @@ void mostrarStatus(Personagem *personagem) {
     printf("%15s  %d\n", "[Agilidade]", personagem->agilidade);
     printf("%15s  %d\n", "[Inteligencia]", personagem->inteligencia);
     printf("%15s  %s\n", "[Hab. Especial]", personagem->habilidadeEspecial);
+    printf("%15s  $%d\n", "[Dinheiro]", personagem->dinheiro);
+    printf("%15s  %d\n", "[Sucata]", personagem->sucata);
 }
 
 void apresentarHistoria() {
@@ -189,9 +221,9 @@ void aguardarEnter() {
 
 void criarJogador(Personagem *personagem) {
     Personagem classes[] = {
-        {"", ATIRADOR, 80, 80, 5, 5, 10, 10, "Rajada de tiros"},
-        {"", SAMURAI, 120, 120, 10, 10, 5, 5, "Golpe em espiral"},
-        {"", CIBORGUE, 150, 150, 5, 15, 0, 5, "Canhao de plasma"}
+        {"", ATIRADOR, 80, 80, 5, 5, 10, 10, "Rajada de tiros", 0, 0},
+        {"", SAMURAI, 120, 120, 10, 10, 5, 5, "Golpe em espiral", 0, 0},
+        {"", CIBORGUE, 150, 150, 5, 15, 0, 5, "Canhao de plasma", 0, 0}
     };
 
     char nome_personagem[25];
@@ -261,7 +293,7 @@ int danoEspecial(Lutador *atacante, Lutador *alvo) {
         case SAMURAI:  soma = atacante->forca + atacante->agilidade; break;
         default:       soma = atacante->defesa + atacante->inteligencia; break;
     }
-    return calcularDano(soma * MULT_ESPECIAL, alvo->defesa);
+    return calcularDano(soma * atacante->multEspecial, alvo->defesa);
 }
 
 void executarAcao(Lutador *atacante, Lutador *alvo, int acao) {
@@ -327,12 +359,12 @@ int combate(Personagem *personagem, Inimigo *inimigo, int ehBoss) {
     Lutador jogador = {
         personagem->nome, personagem->classe, &personagem->vida,
         personagem->forca, personagem->defesa, personagem->agilidade, personagem->inteligencia,
-        0, RECARGA_ESPECIAL - 1
+        0, RECARGA_ESPECIAL - 1, MULT_ESPECIAL
     };
     Lutador oponente = {
         inimigo->nome, inimigo->classe, &inimigo->vida,
         inimigo->forca, inimigo->defesa, inimigo->agilidade, inimigo->inteligencia,
-        0, RECARGA_ESPECIAL - 1
+        0, RECARGA_ESPECIAL - 1, ehBoss ? MULT_ESPECIAL_BOSS : MULT_ESPECIAL
     };
 
     int rodada = 1;
@@ -479,6 +511,168 @@ void construirVisualFase(Mapa *mapa) {
     }
 }
 
+// Posto de reabastecimento
+// Devolve um ponteiro para o atributo que a melhoria altera
+int* obterAtributo(Personagem *personagem, int opcao) {
+    switch (opcao)
+    {
+        case MELHORIA_VIDA:         return &personagem->vidaMax;
+        case MELHORIA_FORCA:        return &personagem->forca;
+        case MELHORIA_DEFESA:       return &personagem->defesa;
+        case MELHORIA_AGILIDADE:    return &personagem->agilidade;
+        case MELHORIA_INTELIGENCIA: return &personagem->inteligencia;
+        default:                    return NULL;
+    }
+}
+
+const char* obterNomeAtributo(int opcao) {
+    switch (opcao)
+    {
+        case MELHORIA_VIDA:         return "Vida maxima";
+        case MELHORIA_FORCA:        return "Forca";
+        case MELHORIA_DEFESA:       return "Defesa";
+        case MELHORIA_AGILIDADE:    return "Agilidade";
+        case MELHORIA_INTELIGENCIA: return "Inteligencia";
+        default:                    return "Inexistente";
+    }
+}
+
+int obterGanhoMelhoria(int opcao) {
+    return (opcao == MELHORIA_VIDA) ? GANHO_VIDA : 1;
+}
+
+int obterLimiteMelhoria(int opcao) {
+    return (opcao == MELHORIA_VIDA) ? LIMITE_VIDA : LIMITE_ATRIBUTO;
+}
+
+// Quanto mais forte o atributo, mais caro melhorar
+int calcularCustoMelhoria(int opcao, int valorAtual) {
+    if (opcao == MELHORIA_VIDA) {
+        return valorAtual / 2;
+    }
+    return (valorAtual + 5) * CUSTO_POR_PONTO;
+}
+
+void comprarMelhoria(Personagem *personagem, int opcao) {
+    int *atributo = obterAtributo(personagem, opcao);
+    int ganho = obterGanhoMelhoria(opcao);
+    int custo = calcularCustoMelhoria(opcao, *atributo);
+
+    if (*atributo >= obterLimiteMelhoria(opcao)) {
+        printf("%s ja esta no maximo!\n", obterNomeAtributo(opcao));
+        return;
+    }
+
+    if (personagem->dinheiro < custo) {
+        printf("Dinheiro insuficiente! Voce precisa de $%d.\n", custo);
+        return;
+    }
+
+    personagem->dinheiro -= custo;
+    *atributo += ganho;
+
+    // Aumentar a vida maxima tambem aumenta a vida atual
+    if (opcao == MELHORIA_VIDA) {
+        personagem->vida += ganho;
+    }
+
+    printf("Equipamento melhorado! %s agora eh %d (gasto: $%d).\n",
+           obterNomeAtributo(opcao), *atributo, custo);
+}
+
+void menuMelhoria(Personagem *personagem) {
+    int escolha;
+
+    limparTela();
+    do {
+        printf(">===============================<\n");
+        printf("     [Melhorar Equipamento]      \n");
+        printf(">===============================<\n");
+        printf("Dinheiro: $%d\n", personagem->dinheiro);
+        printf("\n");
+
+        for (int opcao = MELHORIA_VIDA; opcao <= MELHORIA_INTELIGENCIA; opcao++) {
+            int *atributo = obterAtributo(personagem, opcao);
+
+            printf("[%d] - %-13s %3d -> %3d", opcao, obterNomeAtributo(opcao),
+                   *atributo, *atributo + obterGanhoMelhoria(opcao));
+
+            if (*atributo >= obterLimiteMelhoria(opcao)) {
+                printf("  (MAXIMO)\n");
+            }
+            else {
+                printf("  custo: $%d\n", calcularCustoMelhoria(opcao, *atributo));
+            }
+        }
+        printf("[%d] - Voltar\n", MELHORIA_VOLTAR);
+        printf("Digite a sua acao: ");
+        escolha = lerInteiro();
+
+        limparTela();
+        if (escolha >= MELHORIA_VIDA && escolha <= MELHORIA_INTELIGENCIA) {
+            comprarMelhoria(personagem, escolha);
+        }
+    } while (escolha != MELHORIA_VOLTAR);
+}
+
+void menuReabastecimento(Mapa *mapa, Personagem *personagem) {
+    int escolha;
+
+    do {
+        printf(">===============================<\n");
+        printf("    [Posto de Reabastecimento]   \n");
+        printf(">===============================<\n");
+        printf("Vida: %d / %d   Dinheiro: $%d   Sucata: %d\n",
+               personagem->vida, personagem->vidaMax, personagem->dinheiro, personagem->sucata);
+        printf("\n");
+        printf("[1] - Descansar (recupera toda a vida)\n");
+        printf("[2] - Vender sucata ($%d cada)\n", PRECO_SUCATA);
+        printf("[3] - Melhorar equipamento\n");
+        printf("[4] - Verificar o mapa\n");
+        printf("[5] - Seguir para o proximo destino\n");
+        printf("Digite a sua acao: ");
+        escolha = lerInteiro();
+
+        switch (escolha)
+        {
+            case POSTO_DESCANSAR:
+                limparTela();
+                if (personagem->vida >= personagem->vidaMax) {
+                    printf("Voce ja esta com a vida cheia.\n");
+                }
+                else {
+                    personagem->vida = personagem->vidaMax;
+                    printf("Voce descansou e recuperou toda a sua vida!\n");
+                }
+                break;
+            case POSTO_VENDER:
+                limparTela();
+                if (personagem->sucata <= 0) {
+                    printf("Voce nao tem sucata para vender.\n");
+                }
+                else {
+                    int ganho = personagem->sucata * PRECO_SUCATA;
+                    printf("Voce vendeu %d sucata(s) por $%d.\n", personagem->sucata, ganho);
+                    personagem->dinheiro += ganho;
+                    personagem->sucata = 0;
+                }
+                break;
+            case POSTO_MELHORAR:
+                menuMelhoria(personagem);
+                break;
+            case POSTO_MAPA:
+                limparTela();
+                construirVisualFase(mapa);
+                break;
+            case POSTO_SEGUIR:
+                break;
+            default:
+                limparTela();
+                break;
+        }
+    } while (escolha != POSTO_SEGUIR);
+}
+
 ResultadoSala avancarSala(Mapa *mapa, int *inimigosEncontrados, Personagem *personagem) {
     int proxima = mapa->salas[mapa->jogador].proxima;
 
@@ -502,12 +696,21 @@ ResultadoSala avancarSala(Mapa *mapa, int *inimigosEncontrados, Personagem *pers
             break;
         }
         case SALA_REABASTECIMENTO:
-            personagem->vida = personagem->vidaMax;
-            printf("Voce chegou a um posto de reabastecimento e recuperou toda a sua vida!\n");
+            printf("Voce chegou a um posto de reabastecimento.\n");
+            menuReabastecimento(mapa, personagem);
+            limparTela();
+            return avancarSala(mapa, inimigosEncontrados, personagem);
+        case SALA_TESOURO: {
+            int sucata = girarDado(TESOURO_SUCATA_MAX);
+            int dinheiro = TESOURO_DINHEIRO_BASE + girarDado(6) * 5;
+
+            personagem->sucata += sucata;
+            personagem->dinheiro += dinheiro;
+
+            printf("Voce encontrou um local com tesouros!\n");
+            printf("Voce recebeu $%d e %d sucata(s).\n", dinheiro, sucata);
             break;
-        case SALA_TESOURO:
-            printf("Voce encontrou um local com tesouros.\n");
-            break;
+        }
         case SALA_ENTRADA:
         default:
             break;
@@ -567,22 +770,27 @@ ResultadoSala executarFase(Mapa *mapa, Personagem *personagem) {
 }
 
 void apresentarTutorial() {
-    printf(">==========================<\n");
-    printf("         [Tutorial]         \n");
-    printf(">==========================<\n");
-    printf("[Lynx]: Oi eu sou o robo-guia da sua nave, lembra de mim?\n");
-    printf("[Lynx]: Enfim, voce ira enfrentar varios mapas com loots, inimigos\n");
-    printf("e locais para se curar ou melhorar seus equipamentos. O mapa apresenta\n");
-    printf("quadrados com letras, que representam cada um desses locais.\n");
-    printf("Sao eles:\n");
-    printf("[E] - Inicio.\n");
-    printf("[T] - Tesouro.\n");
-    printf("[R] - Posto de reabastecimento.\n");
-    printf("[X] - Inimigos e Bosses.\n");
-    printf("[Lynx]: Como o rei disse, se voce derrubar todos os lideres das bases\n");
-    printf("da Space Hounds, voce nao vai ter que pagar pelo estrago que voce fez.\n");
-    printf("[Lynx]: Essa brincadeira vai ser dificil, qualquer coisa estarei por\n");
-    printf("aqui para tirar duvidas.\n");
+    printf(">==========================<\n"
+           "         [Tutorial]         \n"
+           ">==========================<\n"
+           "[Lynx]: Oi, eu sou o robo-guia da sua nave, lembra de mim?\n"
+           "[Lynx]: Enfim, voce ira enfrentar varios mapas com recompensas, inimigos\n"
+           "e locais para se curar ou melhorar seus equipamentos. O mapa apresenta\n"
+           "quadrados com letras, que representam cada um desses locais.\n"
+           "[Lynx]: Sao eles:\n"
+           "[E] - Inicio.\n"
+           "[T] - Tesouro.\n"
+           "[R] - Posto de reabastecimento.\n"
+           "[X] - Inimigos e Bosses.\n\n"
+           "[Lynx]: Alem disso, eh importante saber que, no dano dos ataques\n"
+           "normais, samurais e ciborgues usam forca, enquanto atiradores usam\n"
+           "inteligencia. Ja no dano das habilidades especiais, samurais usam\n"
+           "forca + agilidade, ciborgues usam forca + defesa e atiradores usam\n"
+           "inteligencia + agilidade.\n"
+           "[Lynx]: Como o rei disse, se voce derrubar todos os lideres das bases\n"
+           "da Space Hounds, voce nao vai ter que pagar pelo estrago que fez.\n"
+           "[Lynx]: Essa brincadeira vai ser dificil, qualquer coisa estarei\n"
+           "por aqui para tirar duvidas.\n");
 }
 
 void dialogoInicioFase(int fase) {
@@ -639,6 +847,10 @@ int main() {
     limparTela();
 
     Personagem personagem;
+
+    printf(">=============================<\n");
+    printf("     -[[  OrbitRunner  ]]-     \n");
+    printf(">=============================<\n");
 
     criarJogador(&personagem);
     aguardarEnter();
@@ -786,25 +998,25 @@ int main() {
     fase2.inimigos[0] = (Inimigo){"Sullivan", SAMURAI, 120, 120, 15, 10, 5, 5};
     fase2.inimigos[1] = (Inimigo){"Spencer", CIBORGUE, 150, 150, 8, 15, 0, 5};
     fase2.inimigos[2] = (Inimigo){"Edgar", CIBORGUE, 150, 150, 8, 15, 0, 5};
-    fase2.boss = (Inimigo){"Maia", SAMURAI, 160, 160, 15, 12, 8, 5};
+    fase2.boss = (Inimigo){"Maia", SAMURAI, 170, 170, 15, 12, 8, 5};
 
     // Inimigos - Fase 3
-    fase3.inimigos[0] = (Inimigo){"Marshall", ATIRADOR, 90, 90, 8, 5, 12, 10};
-    fase3.inimigos[1] = (Inimigo){"Ron", SAMURAI, 130, 130, 15, 12, 5, 8};
-    fase3.inimigos[2] = (Inimigo){"Luke", CIBORGUE, 160, 160, 8, 15, 2, 8};
-    fase3.boss = (Inimigo){"Plutus", ATIRADOR, 180, 180, 12, 8, 15, 12};
+    fase3.inimigos[0] = (Inimigo){"Marshall", ATIRADOR, 110, 110, 9, 5, 12, 10};
+    fase3.inimigos[1] = (Inimigo){"Ron", SAMURAI, 150, 150, 15, 12, 5, 8};
+    fase3.inimigos[2] = (Inimigo){"Luke", CIBORGUE, 180, 180, 8, 15, 2, 8};
+    fase3.boss = (Inimigo){"Plutus", ATIRADOR, 200, 200, 12, 8, 15, 12};
 
     // Inimigos - Fase 4
-    fase4.inimigos[0] = (Inimigo){"Bond", CIBORGUE, 170, 170, 10, 15, 2, 8};
-    fase4.inimigos[1] = (Inimigo){"Maximus", SAMURAI, 140, 140, 15, 12, 8, 10};
-    fase4.inimigos[2] = (Inimigo){"Gustaf", ATIRADOR, 100, 100, 10, 8, 12, 12};
-    fase4.boss = (Inimigo){"Argos", CIBORGUE, 220, 220, 15, 15, 5, 10};
+    fase4.inimigos[0] = (Inimigo){"Bond", CIBORGUE, 185, 185, 10, 15, 2, 8};
+    fase4.inimigos[1] = (Inimigo){"Maximus", SAMURAI, 155, 155, 14, 12, 8, 10};
+    fase4.inimigos[2] = (Inimigo){"Gustaf", ATIRADOR, 112, 112, 10, 8, 12, 13};
+    fase4.boss = (Inimigo){"Argos", CIBORGUE, 265, 265, 15, 16, 5, 12};
 
     // Inimigos - Fase 5
-    fase5.inimigos[0] = (Inimigo){"Bruce", SAMURAI, 150, 150, 15, 15, 10, 10};
-    fase5.inimigos[1] = (Inimigo){"Klaus", ATIRADOR, 120, 120, 12, 8, 15, 15};
-    fase5.inimigos[2] = (Inimigo){"Vivien", CIBORGUE, 200, 200, 12, 15, 5, 10};
-    fase5.boss = (Inimigo){"Urano", SAMURAI, 250, 250, 15, 15, 10, 15};
+    fase5.inimigos[0] = (Inimigo){"Bruce", SAMURAI, 180, 180, 14, 15, 10, 10};
+    fase5.inimigos[1] = (Inimigo){"Klaus", ATIRADOR, 140, 140, 11, 8, 15, 15};
+    fase5.inimigos[2] = (Inimigo){"Vivien", CIBORGUE, 230, 230, 11, 15, 5, 10};
+    fase5.boss = (Inimigo){"Urano", SAMURAI, 285, 285, 16, 16, 12, 15};
 
     Mapa *fases[] = {&fase1, &fase2, &fase3, &fase4, &fase5};
     int totalFases = sizeof(fases) / sizeof(fases[0]);
@@ -824,8 +1036,11 @@ int main() {
             printf("          [GAME OVER]          \n");
             printf(">=============================<\n");
             printf("Os Space Hounds foram mais fortes dessa vez...\n");
+            aguardarEnter();
             return 0;
         }
+
+        personagem.vida = personagem.vidaMax;
 
         printf(">=============================<\n");
         printf("Fase \"%s\" concluida!\n", fases[i]->nome);
@@ -834,10 +1049,18 @@ int main() {
     }
 
     limparTela();
-    printf(">=============================<\n");
-    printf("          [VITORIA]            \n");
-    printf(">=============================<\n");
-    printf("Voce eliminou a gangue Space Hounds e quitou sua divida com o rei de Marte!\n");
-
+    printf(">=============================<\n"
+       "          [VITORIA]            \n"
+       ">=============================<\n"
+       "[Lynx]: Voce conseguiu! A gangue Space Hounds foi eliminada\n"
+       "e sua divida com o rei de Marte finalmente foi quitada.\n"
+       "[Lynx]: Espera... apareceu uma transmissao ao vivo na rede.\n"
+       "Voce precisa ver isso.\n"
+       "[Lynx]: O rei de Marte esta sendo anunciado como... Rei do Sol?\n"
+       "[Lynx]: Agora tudo faz sentido... As bases que nos \"libertamos\"...\n"
+       "O exercito marciano estava assumindo o controle de cada uma delas.\n"
+       "[Lynx]: Enquanto pensavamos estar libertando esses lugares,\n"
+       "estavamos apenas abrindo caminho para a expansao de Marte.\n"
+       "[Lynx]: Parece que nada veio de graca, nao eh?\n");
     return 0;
 }

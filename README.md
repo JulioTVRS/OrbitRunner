@@ -1,5 +1,7 @@
 # OrbitRunner
 
+Jogo feito em C para a matéria de programação do curso de Sistemas de Informação na UFRN.
+
 **Aluno:** Júlio César Tavares da Silva  
 **Matrícula:** 20260052015
 

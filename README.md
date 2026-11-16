@@ -140,6 +140,10 @@ O código foi modularizado em funções responsáveis por diferentes partes da e
 - Exibição de diálogos e progressão da história.
 - Controle da exploração e conclusão das fases.
 
+## Vídeo demonstrando o jogo
+
+https://drive.google.com/drive/folders/1GMvVufXk9PQMd5tMNUFCWtFRy8f_-WsT?usp=sharing
+
 ## Como Compilar e Executar
 
 O projeto utiliza a linguagem C no padrão C99 e pode ser compilado utilizando o GCC.
